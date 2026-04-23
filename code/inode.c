@@ -16,7 +16,7 @@ void inode_table_init(void)
 
 
 //this is to prevent unsafe access to the array and reyturn NULL if outta bounds
-inode_t *inode_get(uint32_t, idx)
+inode_t *inode_get(uint32_t idx)
 {
   if (idx >= MAX_INODES)
     return NULL;
