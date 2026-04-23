@@ -11,7 +11,7 @@
 #define MAX_INODES 128 
 #define MAX_FILENAME 32
 //i changed this from 4096 (4kb) to 32*1024 (32kb) big enough to hold the metadatas 
-#define MAX_FILE_SIZE 32*1024
+#define MAX_FILE_SIZE (32*1024)
 //added a max directories two
 #define MAX_DIR_ENTRIES 32
 
