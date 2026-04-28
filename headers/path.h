@@ -4,9 +4,14 @@
 #include "inode.h"
 
 // Find the inode index for a full path
-int get_inode(const char *path);
+//
+// i have changed get_inode to path_lookup because we already have a get_inode
+// functoin declared in inode.h which will cause issues in code readability
+
+int path_lookup(const char *path);
 
 // Find the parent folder's inode and get the file name
-int get_parent(const char *path, char *filename);
+// i changed *filename to name_out because we are also deailng with directories too and these arent files
+int path_lookup_parent(const char *path, uint32_t *parent_idx, char *name_out);
 
 #endif
