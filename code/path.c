@@ -9,7 +9,7 @@
 ///
 ///
 
-statin int split_path(const char *path, char parts[][MAX_FILENAME], int max_parts)
+static int split_path(const char *path, char parts[][MAX_FILENAME], int max_parts)
 
 {
   if (!path || path[0] != '/')
@@ -94,7 +94,7 @@ int path_lookup(const char *path)
 
 
     ///next entry
-    int_child = dir_lookup(current, parts[i]);
+    int child = dir_lookup(current, parts[i]);
     if (child < 0)
     {
       return -1;
@@ -130,10 +130,10 @@ int path_lookup_parent(const char *path, uint32_t *parent_idx, char *name_out)
 
   } else {
     size_t parent_len = (size_t)(last_slash - path);
-    if (parent_len >= sizeoff(parent_path))
+    if (parent_len >= sizeof(parent_path))
       return -1;
 
-    strncpy(parent_pathm path, parent_len);
+    strncpy(parent_path, path, parent_len);
     parent_path[parent_len] = '\0';
 
   }
