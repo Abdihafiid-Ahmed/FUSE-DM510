@@ -3,6 +3,13 @@
 
 #include "inode.h"
 
+//added this to make path.c lookup more readable
+//
+//
+#define ROOT_INODE_IDX 0
+
+
+
 // Find the inode index for a full path
 //
 // i have changed get_inode to path_lookup because we already have a get_inode
