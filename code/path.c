@@ -114,7 +114,7 @@ int path_lookup(const char *path)
 int path_lookup_parent(const char *path, uint32_t *parent_idx, char *name_out)
 
 {
-  if (!path || path[0] != '/' || !parent_idx || !name_out")
+  if (!path || path[0] != '/' || !parent_idx || !name_out)
       return -1;
 
   const char *last_slash = strrchr(path, '/');
