@@ -1,8 +1,18 @@
+#define FUSE_USE_VERSION 26
+ 
 #include <fuse.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+ 
+#include "../headers/inode.h"
+#include "../headers/dir.h"
+#include "../headers/path.h"
+#include "../headers/storage.h"
+
+
 
 int pifs_getattr( const char *, struct stat * );
 int pifs_readdir( const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info * );
