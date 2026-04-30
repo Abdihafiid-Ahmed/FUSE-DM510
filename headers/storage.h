@@ -6,7 +6,7 @@
 #define PIFS_SIGNATURE "PiFS0001"
 
 ///length of signature no null terminator
-#define PIFS_MAGIC_LEN  8
+#define PIFS_SIGNATURE_LEN  8
 
 
 // Path to the SD card partition
