@@ -1,6 +1,7 @@
 #define FUSE_USE_VERSION 26
  
 #include <fuse.h>
+#include <fuse/fuse.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -8,40 +9,25 @@
 #include <time.h>
  
 #include "../headers/inode.h"
-#include "../headers/dir.h"
+#include "../headers/directory.h"
 #include "../headers/path.h"
 #include "../headers/storage.h"
 
-
-
-int pifs_getattr( const char *, struct stat * );
-int pifs_readdir( const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info * );
-int pifs_open( const char *, struct fuse_file_info * );
-int pifs_read( const char *, char *, size_t, off_t, struct fuse_file_info * );
+/* Forward declarations for file operations (implemented by lars by default, will be changed prolly) */
+int pifs_open(const char *path, struct fuse_file_info *fi);
+int pifs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int pifs_release(const char *path, struct fuse_file_info *fi);
-void* pifs_init();
+void *pifs_init(void);   
 void pifs_destroy(void *private_data);
-/*
- * See descriptions in fuse source code usually located in /usr/include/fuse/fuse.h
- * Notice: The version on Github may be a newer version than you have installed
- */
-static struct fuse_operations pifs_oper = {
-	.getattr	= pifs_getattr,
-	.readdir	= pifs_readdir,
-	.mknod = NULL,
-	.mkdir = NULL,
-	.unlink = NULL,
-	.rmdir = NULL,
-	.truncate = NULL,
-	.open	= pifs_open,
-	.read	= pifs_read,
-	.release = pifs_release,
-	.write = NULL,
-	.rename = NULL,
-	.utime = NULL,
-	.init = pifs_init,
-	.destroy = pifs_destroy
-};
+
+/* Wrapper to adapt the no-arg pifs_init to the signature FUSE requires */
+static void *pifs_init_wrapper(struct fuse_conn_info *conn) {
+  (void)conn;
+  return pifs_init();
+}
+
+
+
 
 /*
  * Return file attributes.
@@ -49,23 +35,28 @@ static struct fuse_operations pifs_oper = {
  * For the given pathname, this should fill in the elements of the "stat" structure.
  * If a field is meaningless or semi-meaningless (e.g., st_ino) then it should be set to 0 or given a "reasonable" value.
  * This call is pretty much required for a usable filesystem.
-*/
-int pifs_getattr( const char *path, struct stat *stbuf ) {
-	int res = 0;
-	printf("getattr: (path=%s)\n", path);
+ */
+static int pifs_getattr(const char *path, struct stat *stbuf)
+{
+  //logs the path
+  fprintf(stderr, "getattr %s\n", path);
 
-	memset(stbuf, 0, sizeof(struct stat));
-	if( strcmp( path, "/" ) == 0 ) {
-		stbuf->st_mode = S_IFDIR | 0755;
-		stbuf->st_nlink = 2;
-	} else if( strcmp( path, "/hello" ) == 0 ) {
-		stbuf->st_mode = S_IFREG | 0777;
-		stbuf->st_nlink = 1;
-		stbuf->st_size = 12;
-	} else
-		res = -ENOENT;
+  ///resolves it to inode index
+  int idx = path_lookup(path);
+  if (idx < 0)
+    return -ENOENT;
 
-	return res;
+  ///extracts the inode from storage
+  inode_t *inode = inode_get((uint32_t)idx);
+  if (!inode)
+    return -ENOENT;
+
+  if (inode->type == INODE_DIR)
+    inode_to_stat(inode, stbuf, S_IFDIR);
+  else
+    inode_to_stat(inode, stbuf, S_IFREG);
+
+  return 0;
 }
 
 /*
@@ -90,21 +81,117 @@ int pifs_getattr( const char *path, struct stat *stbuf ) {
  *
  * It's also important to note that readdir can return errors in a number of instances;
  * in particular it can return -EBADF if the file handle is invalid, or -ENOENT if you use the path argument and the path doesn't exist.
-*/
-int pifs_readdir( const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi ) {
-	(void) offset;
-	(void) fi;
-	printf("readdir: (path=%s)\n", path);
+ */
+static int pifs_readdir(const char *path,
+                        void *buf,
+                        fuse_fill_dir_t filler,
+                        off_t offset,
+                        struct fuse_file_info *fi)
+{
+  (void)offset;
+  (void)fi;
+  ///lists content of directory and always adds "." and ".." at first then iterates over the direntry array
+  fprintf(stderr, "readdir: %s\n", path);
 
-	if(strcmp(path, "/") != 0)
-		return -ENOENT;
+  int idx = path_lookup(path);
+  if (idx < 0)
+    return -ENOENT;
 
-	filler(buf, ".", NULL, 0);
-	filler(buf, "..", NULL, 0);
-	filler(buf, "hello", NULL, 0);
+  inode_t *inode = inode_get((uint32_t)idx);
+  if (!inode || inode->type != INODE_DIR)
+    return -ENOTDIR;
 
-	return 0;
+  ///filler is a fuse callback that adds entries to the directory buffer
+  filler(buf, ".", NULL, 0);
+  filler(buf, "..", NULL, 0);
+
+  uint32_t count = dir_entry_count((uint32_t)idx);
+  for (uint32_t i = 0; i < count; i++)
+  {
+    const DirEntry *entry = dir_get_entry((uint32_t)idx, i);
+    if (!entry) break;
+    filler(buf, entry->name, NULL, 0);
+  }
+
+  return 0;
 }
+
+///create a new sub directory
+static int pifs_mkdir(const char *path, mode_t mode)
+{
+  (void)mode;
+  fprintf(stderr, "mkdir: %s\n", path);
+
+  uint32_t parent_idx;
+  char name[MAX_FILENAME];
+  if (path_lookup_parent(path, &parent_idx, name) < 0)
+    return -ENOENT;
+
+  //prevent duplicate directory names within the same parent
+  if (dir_lookup(parent_idx, name) >= 0)
+    return -EEXIST;
+
+  int new_idx = inode_alloc(INODE_DIR);
+  if (new_idx < 0)
+    return -ENOSPC;
+
+  dir_init((uint32_t)new_idx);
+
+  if (dir_add_entry(parent_idx, name, (uint32_t)new_idx) < 0) {
+    inode_free((uint32_t)new_idx);
+    return -ENOSPC;
+  }
+
+  return 0;
+}
+
+////removes an empty directory
+static int pifs_rmdir(const char *path)
+{
+  fprintf(stderr, "rmdir: %s\n", path);
+
+  uint32_t parent_idx;
+  char name[MAX_FILENAME];
+  if (path_lookup_parent(path, &parent_idx, name) < 0)
+    return -ENOENT;
+
+  int idx = dir_lookup(parent_idx, name);
+  if (idx < 0)
+    return -ENOENT;
+
+  inode_t *inode = inode_get((uint32_t)idx);
+  if (!inode || inode->type != INODE_DIR)
+    return -ENOTDIR;
+
+  if (!dir_is_empty_count((uint32_t)idx))
+    return -ENOTEMPTY;
+
+  dir_remove_entry(parent_idx, name);
+  inode_free((uint32_t)idx);
+  return 0;
+}
+
+/*
+ * See descriptions in fuse source code usually located in /usr/include/fuse/fuse.h
+ * Notice: The version on Github may be a newer version than you have installed
+ */
+static struct fuse_operations pifs_oper = {
+  .getattr  = pifs_getattr,
+  .readdir  = pifs_readdir,
+  .mknod    = NULL,
+  .mkdir    = pifs_mkdir,
+  .unlink   = NULL,
+  .rmdir    = pifs_rmdir,
+  .truncate = NULL,
+  .open     = pifs_open,
+  .read     = pifs_read,
+  .release  = pifs_release,
+  .write    = NULL,
+  .rename   = NULL,
+  .utime    = NULL,
+  .init     = pifs_init_wrapper,
+  .destroy  = pifs_destroy
+};
 
 /*
  * Open a file.
@@ -112,20 +199,24 @@ int pifs_readdir( const char *path, void *buf, fuse_fill_dir_t filler, off_t off
  * If you use file handles, you should also allocate any necessary structures and set fi->fh.
  * In addition, fi has some other fields that an advanced filesystem might find useful; see the structure definition in fuse_common.h for very brief commentary.
  * Link: https://github.com/libfuse/libfuse/blob/0c12204145d43ad4683136379a130385ef16d166/include/fuse_common.h#L50
-*/
-int pifs_open( const char *path, struct fuse_file_info *fi ) {
-    printf("open: (path=%s)\n", path);
-	return 0;
+ */
+int pifs_open(const char *path, struct fuse_file_info *fi) {
+  (void)fi;
+  printf("open: (path=%s)\n", path);
+  return 0;
 }
 
 /*
  * Read size bytes from the given file into the buffer buf, beginning offset bytes into the file. See read(2) for full details.
  * Returns the number of bytes transferred, or 0 if offset was at or beyond the end of the file. Required for any sensible filesystem.
-*/
-int pifs_read( const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi ) {
-    printf("read: (path=%s)\n", path);
-	memcpy( buf, "Hello\n", 6 );
-	return 6;
+ */
+int pifs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+  (void)size;
+  (void)offset;
+  (void)fi;
+  printf("read: (path=%s)\n", path);
+  memcpy(buf, "Hello\n", 6);
+  return 6;
 }
 
 /*
@@ -133,8 +224,9 @@ int pifs_read( const char *path, char *buf, size_t size, off_t offset, struct fu
  * Release is called when FUSE is completely done with a file; at that point, you can free up any temporarily allocated data structures.
  */
 int pifs_release(const char *path, struct fuse_file_info *fi) {
-	printf("release: (path=%s)\n", path);
-	return 0;
+  (void)fi;
+  printf("release: (path=%s)\n", path);
+  return 0;
 }
 
 /**
@@ -145,9 +237,9 @@ int pifs_release(const char *path, struct fuse_file_info *fi) {
  * parameter to the destroy() method. It overrides the initial
  * value provided to fuse_main() / fuse_new().
  */
-void* pifs_init() {
-    printf("init filesystem\n");
-    return NULL;
+void *pifs_init(void) {
+  printf("init filesystem\n");
+  return NULL;
 }
 
 /**
@@ -155,12 +247,11 @@ void* pifs_init() {
  * Called on filesystem exit.
  */
 void pifs_destroy(void *private_data) {
-    printf("destroy filesystem\n");
+  (void)private_data;
+  printf("destroy filesystem\n");
 }
 
-
-int main( int argc, char *argv[] ) {
-	fuse_main( argc, argv, &pifs_oper );
-
-	return 0;
+int main(int argc, char *argv[]) {
+  fuse_main(argc, argv, &pifs_oper, NULL);
+  return 0;
 }
