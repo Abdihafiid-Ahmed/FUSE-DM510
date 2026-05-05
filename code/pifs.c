@@ -34,6 +34,7 @@ void *pifs_init(void)
 
   //makes sure root exists
   int root = inode_alloc(INODE_DIR);
+  dir_init((uint32_t)root);
   if(root == 0)
     dir_init(0);
   else
@@ -197,6 +198,11 @@ static int pifs_mknod(const char *path, mode_t mode, dev_t rdev) {
     return 0;
 }
 
+static int pifs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    return pifs_mknod(path, mode, 0);
+}
+
 ///delete files
 static int pifs_unlink(const char *path) 
 
@@ -327,7 +333,7 @@ void pifs_destroy(void *private_data) {
 static struct fuse_operations pifs_oper = {
   .getattr  = pifs_getattr,
   .readdir  = pifs_readdir,
-  .mknod    = pifs_mknod,
+  .create   = pifs_create,
   .mkdir    = pifs_mkdir,
   .unlink   = pifs_unlink,
   .rmdir    = pifs_rmdir,
@@ -336,8 +342,7 @@ static struct fuse_operations pifs_oper = {
   .read     = pifs_read,
   .release  = pifs_release,
   .write    = pifs_write,
-  .rename   = NULL,
-  .utime    = NULL,
+ 
   .init     = pifs_init_wrapper,
   .destroy  = pifs_destroy
 };
