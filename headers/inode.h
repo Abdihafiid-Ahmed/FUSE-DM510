@@ -8,7 +8,7 @@
 #include <stddef.h>
 
 ///changed from files to INODES and from 100 to 128 because its a power of two and much prefered in systems code also 128*32kb = 4mb
-#define MAX_INODES 128 
+#define MAX_INODES 120 
 #define MAX_FILENAME 32
 //i changed this from 4096 (4kb) to 32*1024 (32kb) big enough to hold the metadatas 
 #define MAX_FILE_SIZE (32*1024)
