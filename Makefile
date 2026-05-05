@@ -1,23 +1,24 @@
-GCC = gcc
-SOURCES = pifs.c
-OBJS := $(patsubst %.c,%.o,$(SOURCES))
-CFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=25
+CC = gcc
+CFLAGS = -Wall -O2 -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I../headers
+LIBS = -lfuse
+TARGETS = pifs pifs_format
 
-.PHONY: pifs
+PIFS_SRC = pifs.c
+FORMAT_SRC = pifs_format.c
 
-##
-# Libs 
-##
-LIBS := fuse 
-LIBS := $(addprefix -l,$(LIBS))
 
-all: pifs
+PIFS_OBJ = $(PIFS_SRC:.c=.o)
+FORMAT_OBJ = $(FORMAT_SRC:.c=.o)
 
+
+all: $(TARGETS)
 %.o: %.c
-	$(GCC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c $< -o $@
+pifs: $(PIFS_OBJ)
+	$(CC) $(PIFS_OBJ) -o pifs $(LIBS)
+pifs_format: $(FORMAT_OBJ)
+	$(CC) $(FORMAT_OBJ) -o pifs_format
 
-pifs: $(OBJS)
-	$(GCC) $(OBJS) $(LIBS) $(CFLAGS) -o pifs
 
 clean:
-	rm -f $(OBJS) lfs
+	rm -f *.o $(TARGETS)
