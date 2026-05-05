@@ -29,7 +29,7 @@ static int split_path(const char *path, char parts[][MAX_FILENAME], int max_part
       len = (size_t)(slash - p);
 
     }else{
-      len = len = strlen(p);
+      len = strlen(p);
     }
     
     ///just skipping empty components
