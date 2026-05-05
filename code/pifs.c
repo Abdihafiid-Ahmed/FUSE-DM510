@@ -160,7 +160,7 @@ static int pifs_rmdir(const char *path)
   if (!inode || inode->type != INODE_DIR)
     return -ENOTDIR;
 
-  if (!dir_is_empty_count((uint32_t)idx))
+  if (!dir_is_empty((uint32_t)idx))
     return -ENOTEMPTY;
 
   dir_remove_entry(parent_idx, name);

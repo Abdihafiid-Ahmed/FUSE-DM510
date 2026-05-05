@@ -33,7 +33,7 @@ uint32_t dir_entry_count(uint32_t dir_idx);
 
 
 //returm 1 if empty and zero if not
-int dir_is_empty_count(uint32_t dir_idx);
+int dir_is_empty(uint32_t dir_idx);
 
 
 #endif 
