@@ -26,26 +26,25 @@ void pifs_destroy(void *private_data);
 
 ////Initialize
 
-void *pifs_init(void) {
-    fprintf(stderr, "init filesystem\n");
-    
-    if (storage_load() == 0) {
-        fprintf(stderr, "Filesystem loaded successfully from storage.\n");
-    } else {
-        fprintf(stderr, "Failed to load. Initializing fresh table...\n");
+void *pifs_init(void)
+{
+  fprintf(stderr, "init filesystem\n");
+//(small fix) without it getattr fails   
+  if (storage_load() != 0) {
+        fprintf(stderr, "No existing filesystem found or load failed. creating new one\n");
         inode_table_init();
         int root = inode_alloc(INODE_DIR);
         dir_init((uint32_t)root);
-        storage_save(); // Save the new root immediately
+    } else {
+        fprintf(stderr, "Filesystem loaded successfully from storage.\n");
     }
+
     return NULL;
 }
 
 ///Wrapper to adapt the pifs_init to the signature FUSE requires 
 static void *pifs_init_wrapper(struct fuse_conn_info *conn) {
   (void)conn;
-
-  storage_save();
   return pifs_init();
 }
 
@@ -77,7 +76,6 @@ static int pifs_getattr(const char *path, struct stat *stbuf)
   else
     inode_to_stat(inode, stbuf, S_IFREG);
 
-  storage_save();
   return 0;
 }
 
@@ -112,8 +110,7 @@ static int pifs_readdir(const char *path,
     if (!entry) break;
     filler(buf, entry->name, NULL, 0);
   }
-  
-  storage_save();
+
   return 0;
 }
 
@@ -142,8 +139,7 @@ static int pifs_mkdir(const char *path, mode_t mode)
     inode_free((uint32_t)new_idx);
     return -ENOSPC;
   }
-  
-  storage_save();
+
   return 0;
 }
 
@@ -170,8 +166,6 @@ static int pifs_rmdir(const char *path)
 
   dir_remove_entry(parent_idx, name);
   inode_free((uint32_t)idx);
-
-  storage_save();
   return 0;
 }
 
@@ -200,7 +194,7 @@ static int pifs_mknod(const char *path, mode_t mode, dev_t rdev) {
         return -ENOSPC;
     }
     
-    storage_save();
+    
     return 0;
 }
 
@@ -231,7 +225,7 @@ static int pifs_unlink(const char *path)
     dir_remove_entry(parent_idx, name);
     inode_free((uint32_t)idx);
     
-    storage_save();
+    
     return 0;
 }
 
@@ -248,8 +242,6 @@ static int pifs_open(const char *path, struct fuse_file_info *fi) {
     if (!inode || inode->type == INODE_DIR) return -EISDIR;
     ///upadate accessn time 
     inode->last_access = time(NULL);
-
-    storage_save();
 
     return 0;
 }
@@ -274,8 +266,6 @@ static int pifs_read(const char *path, char *buf, size_t size, off_t offset, str
     memcpy(buf, inode->data + offset, size);
     //update time
     inode->last_access = time(NULL);
-
-    storage_save();
     return (int)size;
 }
 
@@ -301,8 +291,6 @@ static int pifs_write(const char *path, const char *buf, size_t size, off_t offs
 
     // update modification time after write
     inode->last_modified = time(NULL);
-
-    storage_save();
     return (int)size;
 }
 
@@ -327,8 +315,6 @@ static int pifs_truncate(const char *path, off_t size) {
 
     // update modification time on truncate
     inode->last_modified = time(NULL);
-    
-    storage_save();
     return 0;
 }
 
@@ -337,7 +323,7 @@ int pifs_release(const char *path, struct fuse_file_info *fi) {
   (void)fi;
   printf("release: (path=%s)\n", path);
 
-  storage_save();
+  storage_save()
   return 0;
 }
 
