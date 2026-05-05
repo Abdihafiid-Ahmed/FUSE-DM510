@@ -26,19 +26,18 @@ void pifs_destroy(void *private_data);
 
 ////Initialize
 
-void *pifs_init(void)
-{
-  fprintf(stderr, "init filesystem\n");
-//(small fix) without it getattr fails   
-  if (storage_load() != 0) {
-        fprintf(stderr, "No existing filesystem found or load failed. creating new one...\n");
+void *pifs_init(void) {
+    fprintf(stderr, "init filesystem\n");
+    
+    if (storage_load() == 0) {
+        fprintf(stderr, "Filesystem loaded successfully from storage.\n");
+    } else {
+        fprintf(stderr, "Failed to load. Initializing fresh table...\n");
         inode_table_init();
         int root = inode_alloc(INODE_DIR);
         dir_init((uint32_t)root);
-    } else {
-        fprintf(stderr, "Filesystem loaded successfully from storage.\n");
+        storage_save(); // Save the new root immediately
     }
-
     return NULL;
 }
 
