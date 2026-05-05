@@ -323,7 +323,7 @@ int pifs_release(const char *path, struct fuse_file_info *fi) {
   (void)fi;
   printf("release: (path=%s)\n", path);
 
-  storage_save()
+  storage_save();
   return 0;
 }
 
